@@ -1,0 +1,136 @@
+#numerical integration
+
+#integrate x^2 on [0,1]
+
+import random
+
+
+def combiner(x:list, shapes: list, operations: list):
+    # shapes are as below, operations are intersection, union, set minus, symmetric difference
+    # operation i is being applied to previous indicator and shape i
+    current_indicator = True
+    next_indicator = False
+    for i in range(len(shapes)):
+        shape = shapes[i][0]
+        if shapes[i][0] == "ball":
+            next_indicator = indicator_ball(shapes[i][1], x, shapes[i][2])
+        elif shape == "annulus":
+            next_indicator = indicator_annulus(shapes[i][1], shapes[i][2], x, shapes[i][3] )
+        # go through possible shapes and set next_indicator here
+        if operations[i] == "intersection":
+            current_indicator = current_indicator and next_indicator
+        elif operations[i] == "union":
+            current_indicator = current_indicator or next_indicator
+        elif operations[i] == "set minus":
+            current_indicator = current_indicator and not next_indicator
+        elif operations[i] == "symmetric difference":
+            current_indicator = (current_indicator or next_indicator) and not (current_indicator and next_indicator)
+    return current_indicator
+                
+#shapes are stored as:
+# ball: [ball, radius, center]
+# annulus: [annulus, radius1, radius2, center]
+# ellipsoid: [ellipsoid, semiaxes, center]
+# graph: [graph, equation, side]
+
+def indicator_ball(r, x: list, c = None):
+    if c == None:
+        c = [0]*len(x)
+    return sum([(xi-ci)**2 for xi,ci in zip(x,c)]) <= r**2
+
+def indicator_annulus(radii,x,c = None):
+    r1,r2 = radii[0], radii[1]
+    if c == None:
+        c = [0]*len(x)
+    length_squared = sum([(xi-ci)**2 for xi,ci in zip(x,c)])
+    return length_squared >= r1**2 and length_squared <= r2**2
+
+def indicator_ellipsoid(axes, x, c = None):
+    if c == None:
+        c = [0]*len(x)
+    return sum([((xi-ci)**2)/(ri**2) for xi,ci,ri in zip(x,c,axes)]) <= 1
+
+def indicator_graph(side, coefficients, x):
+    return (x[-1] > sum([coefficients[i]*x[i] for i in range(len(x)-1)])) and (side == "above")
+            
+    
+    
+
+#def power(x, n=1):
+#    return x**n
+
+#def integrate_1D(F, a, b, N=100, **kwargs):
+#    # F  = (lambda x: x**2) 
+#    sum = 0
+#    for _ in range(N):
+#        sum += F(random.uniform(a,b), **kwargs)
+#    return sum/N
+
+def normalize(v, rectangle):
+    volume = 1
+    for (a,b) in rectangle:
+        volume *= b - a
+    return v*volume
+
+#def integrate(F,rectangle,N=10000):
+    #n = len(rectangle)
+#    sum = 0
+#    for _ in range(N):
+#        sum += F(*[random.uniform(interval[0],interval[1]) for interval in rectangle])
+#    return sum/N
+
+def integrate(shapes, operations, ambient_rectangle, N=1000):
+    sum = 0
+    for _ in range(N):
+        x = [random.uniform(interval[0],interval[1]) for interval in rectangle]
+        sum += combiner(x, shapes, operations)
+    return sum/N
+        
+rectangle = [(-2,2), (-2,2)]
+#print(integrate(indicator_disk,rectangle))
+#print(normalize(integrate(indicator_disk,rectangle, N=1000000), rectangle))
+
+#print(integrate(power, 0, 1, 100000, n=4))
+
+shapes = []
+operations = []
+operations.append("intersection")
+dimension = input("What dimension are we working in?")
+while True:
+    shape = input("Shape? ball/annulus/ellipsoid/above plane/below plane/above graph/below graph ")
+    if shape == "ball":
+        radius = input("radius of ball?")
+        center = input("center of ball? 0 for origin.")
+        if center == "0":
+            center = None
+        parameter1, parameter2 = float(radius), center
+    elif shape == "annulus":
+        radii = input("radii of annulus?")
+        center = input("center of annulus? 0 for origin.")
+        if center == "0":
+            center = None
+        parameter1, parameter2 = radii, center
+    elif shape == "ellipsoid":
+        semiaxes = input("semiaxes?")
+        center = input("center of ellipsoid? 0 for origin.")
+        if center == "0":
+            center = None
+        parameter1, parameter2 = semiaxes, center
+    elif shape == "graph":
+        equation = input("y = ?")
+        side = input("which side of graph? above or below")
+        parameter1, parameter2 = equation, side
+    shapes.append([shape, parameter1, parameter2])
+    val = input("Apply an operation to another shape? intersection/union/set minus/symmetric difference/none")
+    
+    if val == "none":
+        break
+    
+    operations.append(val)
+    
+
+print("Integrating:")
+print("shapes = ", shapes)
+print("operations = ", operations)
+print(integrate(shapes, operations, rectangle))
+print(normalize(integrate(shapes, operations, rectangle), rectangle))
