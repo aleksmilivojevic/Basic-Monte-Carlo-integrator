@@ -1,8 +1,50 @@
-#numerical integration
-
-#integrate x^2 on [0,1]
-
 import random
+import matplotlib.pyplot as plt
+import numpy as np
+
+def extract_coefficient_list(s: str):
+    digits = {'0','1','2','3','4','5','6','7','8','9'}
+    valid_characters = digits.union({'.','-'})
+    
+    output = []
+    current_output = 0
+    currently_reading = False
+    negative = 1
+    factor = 10
+    for i in s:
+        if not currently_reading and i in valid_characters:
+            currently_reading = True
+            current_output = 0
+            factor = 10
+            negative = 1
+            if i == '-':
+                negative = -1
+            elif i == '.':
+                factor = 0.1
+            elif i in digits:
+                current_output = int(i)
+        elif currently_reading and i in valid_characters:
+            if i == '-':
+                output.append(negative*current_output)
+                currently_reading = False
+            elif i == '.':
+                if factor != 10:
+                    output.append(negative*current_output)
+                    currently_reading = False
+                elif factor == 10:
+                    factor = 0.1
+            elif i in digits:
+                if factor != 10:
+                    current_output += int(i)*factor
+                    factor *= 0.1
+                elif factor == 10:
+                    current_output = current_output*10 + int(i)
+        elif currently_reading and i not in valid_characters:
+            currently_reading = False
+            output.append(negative*current_output)
+    if currently_reading and current_output not in {'.','-','-.'}:
+        output.append(negative*current_output)
+    return output
 
 
 def combiner(x:list, shapes: list, operations: list):
@@ -15,8 +57,12 @@ def combiner(x:list, shapes: list, operations: list):
         if shapes[i][0] == "ball":
             next_indicator = indicator_ball(shapes[i][1], x, shapes[i][2])
         elif shape == "annulus":
-            next_indicator = indicator_annulus(shapes[i][1], shapes[i][2], x, shapes[i][3] )
-        # go through possible shapes and set next_indicator here
+            next_indicator = indicator_annulus(shapes[i][1], x, shapes[i][2])
+        elif shape == "graph":
+            next_indicator = indicator_graph(shapes[i][1], x, shapes[i][2])
+        elif shape == "ellipsoid":
+            next_indicator = indicator_ellipsoid(shapes[i][1],x,shapes[i][2])
+        # go through possible shapes and set next_indicator here // make this more efficient with a single indicator function
         if operations[i] == "intersection":
             current_indicator = current_indicator and next_indicator
         elif operations[i] == "union":
@@ -31,7 +77,7 @@ def combiner(x:list, shapes: list, operations: list):
 # ball: [ball, radius, center]
 # annulus: [annulus, radius1, radius2, center]
 # ellipsoid: [ellipsoid, semiaxes, center]
-# graph: [graph, equation, side]
+# graph: [graph, coefficients, side]
 
 def indicator_ball(r, x: list, c = None):
     if c == None:
@@ -50,8 +96,8 @@ def indicator_ellipsoid(axes, x, c = None):
         c = [0]*len(x)
     return sum([((xi-ci)**2)/(ri**2) for xi,ci,ri in zip(x,c,axes)]) <= 1
 
-def indicator_graph(side, coefficients, x):
-    return (x[-1] > sum([coefficients[i]*x[i] for i in range(len(x)-1)])) and (side == "above")
+def indicator_graph(coefficients, x, side):
+    return ((x[-1] > coefficients[0] + sum([coefficients[i]*x[i-1] for i in range(1,len(x))])) and (side == "above")) or ((x[-1] < coefficients[0] + sum([coefficients[i]*x[i-1] for i in range(1,len(x))])) and (side == "below"))
             
     
     
@@ -72,65 +118,73 @@ def normalize(v, rectangle):
         volume *= b - a
     return v*volume
 
-#def integrate(F,rectangle,N=10000):
-    #n = len(rectangle)
-#    sum = 0
-#    for _ in range(N):
-#        sum += F(*[random.uniform(interval[0],interval[1]) for interval in rectangle])
-#    return sum/N
-
-def integrate(shapes, operations, ambient_rectangle, N=1000):
+def integrate(shapes, dimension, operations, ambient_rectangle, N=10000):
     sum = 0
+    points = [[],[]]
     for _ in range(N):
-        x = [random.uniform(interval[0],interval[1]) for interval in rectangle]
-        sum += combiner(x, shapes, operations)
+        x = [random.uniform(interval[0],interval[1]) for interval in ambient_rectangle]
+        new_summand = combiner(x,shapes,operations)
+        sum += new_summand
+        if new_summand and dimension == 2:
+            points[0].append(x[0])
+            points[1].append(x[1])
+    
+    if dimension == 2:
+        print(points[0],points[1])
+        plt.scatter(points[0], points[1])
+        plt.show()
     return sum/N
         
-rectangle = [(-2,2), (-2,2)]
-#print(integrate(indicator_disk,rectangle))
-#print(normalize(integrate(indicator_disk,rectangle, N=1000000), rectangle))
-
-#print(integrate(power, 0, 1, 100000, n=4))
+#rectangle = [(-2,2), (-2,2)]
 
 shapes = []
 operations = []
 operations.append("intersection")
-dimension = input("What dimension are we working in?")
+dimension = int(input("What dimension are we working in?"))
+span = [1]*dimension   # how big to make the ambient rectangle in each semi-axis
 while True:
-    shape = input("Shape? ball/annulus/ellipsoid/above plane/below plane/above graph/below graph ")
+    shape = input("Shape? ball/annulus/ellipsoid/graph")
     if shape == "ball":
-        radius = input("radius of ball?")
-        center = input("center of ball? 0 for origin.")
-        if center == "0":
-            center = None
-        parameter1, parameter2 = float(radius), center
+        radius = float(input("radius of ball?"))
+        center = extract_coefficient_list(input("center of ball? 0 for origin."))
+        if center == [0]:
+            center = [0]*dimension
+        parameter1, parameter2 = radius, center
+        for i in range(dimension):
+            span[i] = max(span[i], abs(center[i])+radius)
     elif shape == "annulus":
-        radii = input("radii of annulus?")
-        center = input("center of annulus? 0 for origin.")
-        if center == "0":
-            center = None
+        radii = extract_coefficient_list(input("radii of annulus, in increasing order?"))
+        center = extract_coefficient_list(input("center of annulus? 0 for origin."))
+        if center == [0]:
+            center = [0]*dimension
         parameter1, parameter2 = radii, center
+        for i in range(dimension):
+            span[i] = max(span[i], abs(center[i])+radii[1])
     elif shape == "ellipsoid":
-        semiaxes = input("semiaxes?")
-        center = input("center of ellipsoid? 0 for origin.")
-        if center == "0":
-            center = None
+        semiaxes = extract_coefficient_list(input("semiaxes?"))
+        center = extract_coefficient_list(input("center of ellipsoid? 0 for origin."))
+        if center == [0]:
+            center = [0]*dimension
         parameter1, parameter2 = semiaxes, center
+        for i in range(dimension):
+            span[i] = max(span[i], abs(center[i])+abs(semiaxes[i]))
     elif shape == "graph":
-        equation = input("y = ?")
+        coefficients = extract_coefficient_list(input("y = a0 + a1x1 + a2x2 + ..., enter the coefficients a_i"))
         side = input("which side of graph? above or below")
-        parameter1, parameter2 = equation, side
+        parameter1, parameter2 = coefficients, side
     shapes.append([shape, parameter1, parameter2])
     val = input("Apply an operation to another shape? intersection/union/set minus/symmetric difference/none")
     
     if val == "none":
         break
     
+    print(span)
     operations.append(val)
+
+rectangle = [(-span[i],span[i]) for i in range(dimension)]
     
 
 print("Integrating:")
 print("shapes = ", shapes)
 print("operations = ", operations)
-print(integrate(shapes, operations, rectangle))
-print(normalize(integrate(shapes, operations, rectangle), rectangle))
+print(normalize(integrate(shapes, dimension, operations, rectangle), rectangle))
