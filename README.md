@@ -49,7 +49,7 @@ shape()
 
 <img width="432" alt="Screenshot 2025-01-06 at 12 43 05 PM" src="https://github.com/user-attachments/assets/84c22b94-dc5b-4551-b336-29aa1c6734b0" />
 
-The ambient rectangle used for Monte Carlo approximation is automatically adjusted. You can prescribe it to be whatever you want using the adjust_box method.
+The ambient rectangle used for Monte Carlo approximation is automatically adjusted. You can prescribe it to be whatever you want using the adjustbox method.
 
 
 <br>  
@@ -59,7 +59,8 @@ Another example:
 ```
 shape = Disk(1,center = [1,1])
 lst = [shape.rotate(60*i) for i in range(6)]
-new_shape = sum(lst, EmptyShape()) - shape.translate([-1,-1])   #use EmptyShape(dimension = 2 by default) to initialize sum
+new_shape = sum(lst, EmptyShape()) - (shape+[-1,-1])   #use EmptyShape(dimension = 2 by default) to initialize sum
+# alternatively, we can translate by e.g. shape.translate([-1,-1]), and similarly for scaling. These methods have an optional in_place parameter.
 new_shape.adjustbox([[-3,3],[-3,3]])
 new_shape.plot()
 ```
