@@ -1,190 +1,368 @@
+from abc import ABC, abstractmethod
+import inspect
 import random
 import matplotlib.pyplot as plt
 import numpy as np
 
-def extract_coefficient_list(s: str):
-    digits = {'0','1','2','3','4','5','6','7','8','9'}
-    valid_characters = digits.union({'.','-'})
-    
-    output = []
-    current_output = 0
-    currently_reading = False
-    negative = 1
-    factor = 10
-    for i in s:
-        if not currently_reading and i in valid_characters:
-            currently_reading = True
-            current_output = 0
-            factor = 10
-            negative = 1
-            if i == '-':
-                negative = -1
-            elif i == '.':
-                factor = 0.1
-            elif i in digits:
-                current_output = int(i)
-        elif currently_reading and i in valid_characters:
-            if i == '-':
-                output.append(negative*current_output)
-                currently_reading = False
-            elif i == '.':
-                if factor != 10:
-                    output.append(negative*current_output)
-                    currently_reading = False
-                elif factor == 10:
-                    factor = 0.1
-            elif i in digits:
-                if factor != 10:
-                    current_output += int(i)*factor
-                    factor *= 0.1
-                elif factor == 10:
-                    current_output = current_output*10 + int(i)
-        elif currently_reading and i not in valid_characters:
-            currently_reading = False
-            output.append(negative*current_output)
-    if currently_reading and current_output not in {'.','-','-.'}:
-        output.append(negative*current_output)
-    return output
+class Shape(ABC):
 
+    volume = "Not computed"
+    name = "shape"
 
-def combiner(x:list, shapes: list, operations: list):
-    # shapes are as below, operations are intersection, union, set minus, symmetric difference
-    # operation i is being applied to previous indicator and shape i
-    current_indicator = True
-    next_indicator = False
-    for i in range(len(shapes)):
-        shape = shapes[i][0]
-        if shapes[i][0] == "ball":
-            next_indicator = indicator_ball(shapes[i][1], x, shapes[i][2])
-        elif shape == "annulus":
-            next_indicator = indicator_annulus(shapes[i][1], x, shapes[i][2])
-        elif shape == "graph":
-            next_indicator = indicator_graph(shapes[i][1], x, shapes[i][2])
-        elif shape == "ellipsoid":
-            next_indicator = indicator_ellipsoid(shapes[i][1],x,shapes[i][2])
-        # go through possible shapes and set next_indicator here // make this more efficient with a single indicator function
-        if operations[i] == "intersection":
-            current_indicator = current_indicator and next_indicator
-        elif operations[i] == "union":
-            current_indicator = current_indicator or next_indicator
-        elif operations[i] == "set minus":
-            current_indicator = current_indicator and not next_indicator
-        elif operations[i] == "symmetric difference":
-            current_indicator = (current_indicator or next_indicator) and not (current_indicator and next_indicator)
-    return current_indicator
-                
-#shapes are stored as:
-# ball: [ball, radius, center]
-# annulus: [annulus, radius1, radius2, center]
-# ellipsoid: [ellipsoid, semiaxes, center]
-# graph: [graph, coefficients, side]
+    def __init__(self, indicator_function, dimension, ambient_rectangle):
+        self.indicator_function = indicator_function
+        if dimension:
+            self.dimension = dimension
+        else:
+            self.dimension = len(inspect.signature(indicator_function).parameters)
+        self.ambient_rectangle = ambient_rectangle
 
-def indicator_ball(r, x: list, c = None):
-    if c == None:
-        c = [0]*len(x)
-    return sum([(xi-ci)**2 for xi,ci in zip(x,c)]) <= r**2
+    def __repr__(self):
+        return f"Shape of dimension {self.dimension}"
 
-def indicator_annulus(radii,x,c = None):
-    r1,r2 = radii[0], radii[1]
-    if c == None:
-        c = [0]*len(x)
-    length_squared = sum([(xi-ci)**2 for xi,ci in zip(x,c)])
-    return length_squared >= r1**2 and length_squared <= r2**2
+    def rename(self, new_name):
+        self.name = new_name
 
-def indicator_ellipsoid(axes, x, c = None):
-    if c == None:
-        c = [0]*len(x)
-    return sum([((xi-ci)**2)/(ri**2) for xi,ci,ri in zip(x,c,axes)]) <= 1
+    def __call__(self, volume = False):
+        self.plot()
+        if volume:
+            if volume != "Not computed":
+                print(f"Volume = {self.monte_carlo_volume()}")
+            else:
+                print(f"Volume = {self.volume}")
 
-def indicator_graph(coefficients, x, side):
-    return ((x[-1] > coefficients[0] + sum([coefficients[i]*x[i-1] for i in range(1,len(x))])) and (side == "above")) or ((x[-1] < coefficients[0] + sum([coefficients[i]*x[i-1] for i in range(1,len(x))])) and (side == "below"))
-            
-    
-    
-
-#def power(x, n=1):
-#    return x**n
-
-#def integrate_1D(F, a, b, N=100, **kwargs):
-#    # F  = (lambda x: x**2) 
-#    sum = 0
-#    for _ in range(N):
-#        sum += F(random.uniform(a,b), **kwargs)
-#    return sum/N
-
-def normalize(v, rectangle):
-    volume = 1
-    for (a,b) in rectangle:
-        volume *= b - a
-    return v*volume
-
-def integrate(shapes, dimension, operations, ambient_rectangle, N=10000):
-    sum = 0
-    points = [[],[]]
-    for _ in range(N):
-        x = [random.uniform(interval[0],interval[1]) for interval in ambient_rectangle]
-        new_summand = combiner(x,shapes,operations)
-        sum += new_summand
-        if new_summand and dimension == 2:
-            points[0].append(x[0])
-            points[1].append(x[1])
-    
-    if dimension == 2:
-        print(points[0],points[1])
-        plt.scatter(points[0], points[1])
-        plt.show()
-    return sum/N
         
-#rectangle = [(-2,2), (-2,2)]
 
-shapes = []
-operations = []
-operations.append("intersection")
-dimension = int(input("What dimension are we working in?"))
-span = [1]*dimension   # how big to make the ambient rectangle in each semi-axis
-while True:
-    shape = input("Shape? ball/annulus/ellipsoid/graph")
-    if shape == "ball":
-        radius = float(input("radius of ball?"))
-        center = extract_coefficient_list(input("center of ball? 0 for origin."))
-        if center == [0]:
-            center = [0]*dimension
-        parameter1, parameter2 = radius, center
-        for i in range(dimension):
-            span[i] = max(span[i], abs(center[i])+radius)
-    elif shape == "annulus":
-        radii = extract_coefficient_list(input("radii of annulus, in increasing order?"))
-        center = extract_coefficient_list(input("center of annulus? 0 for origin."))
-        if center == [0]:
-            center = [0]*dimension
-        parameter1, parameter2 = radii, center
-        for i in range(dimension):
-            span[i] = max(span[i], abs(center[i])+radii[1])
-    elif shape == "ellipsoid":
-        semiaxes = extract_coefficient_list(input("semiaxes?"))
-        center = extract_coefficient_list(input("center of ellipsoid? 0 for origin."))
-        if center == [0]:
-            center = [0]*dimension
-        parameter1, parameter2 = semiaxes, center
-        for i in range(dimension):
-            span[i] = max(span[i], abs(center[i])+abs(semiaxes[i]))
-    elif shape == "graph":
-        coefficients = extract_coefficient_list(input("y = a0 + a1x1 + a2x2 + ..., enter the coefficients a_i"))
-        side = input("which side of graph? above or below")
-        parameter1, parameter2 = coefficients, side
-    shapes.append([shape, parameter1, parameter2])
-    val = input("Apply an operation to another shape? intersection/union/set minus/symmetric difference/none")
-    
-    if val == "none":
-        break
-    
-    print(span)
-    operations.append(val)
+    def __add__(self, second):  # syntax +
+        def sum_of_functions(f1, f2):
+            def new_function(*args, **kwargs):
+                return 0 if f1(*args, **kwargs)==0 and f2(*args, **kwargs) == 0 else 1
+            return new_function
+        if isinstance(second, Shape) and second.dimension == self.dimension:
+            return Shape(sum_of_functions(self.indicator_function, second.indicator_function), self.dimension, self.ambient_rectangle.fuse(second.ambient_rectangle))
+        elif isinstance(second, list):
+            return self.translate(second)
+        return NotImplemented
 
-rectangle = [(-span[i],span[i]) for i in range(dimension)]
+    def __radd__(self, vector):   # syntax vector+shape for translating shape by vector
+        return self.translate(vector)
+    
+    def __mul__(self, second): #syntax *
+        def intersecting(intvl1, intvl2):
+            interval1 = intvl1.copy()
+            interval2 = intvl2.copy()
+            
+            if interval1[0] > interval2[0]:
+
+                interval1, interval2 = interval2, interval1
+            return (interval1[0] < interval2[0] < interval1[1]) or (interval2[0] < interval1[0] < interval2[1]) or (interval1[0] == interval2[0] and interval1[1] == interval2[1])
+        def product_of_functions(f1, f2):
+            def new_function(*args, **kwargs):
+                return f1(*args, **kwargs)*f2(*args, **kwargs)
+            return new_function
+        if isinstance(second, Shape) and second.dimension == self.dimension:
+            #check first if intersection of ambient rectangles is empty
+            if all(intersecting(self.ambient_rectangle.intervals[i], second.ambient_rectangle.intervals[i]) for i in range(self.dimension)):
+                return Shape(product_of_functions(self.indicator_function, second.indicator_function), self.dimension, self.ambient_rectangle.intersect(second.ambient_rectangle))
+            else:
+                return EmptyShape(self.dimension)
+        elif isinstance(second, int):
+            return self.scale(second)
+        elif isinstance(second, float):
+            return self.scale(second)
+        return NotImplemented
+    
+    def __rmul__(self, factor):   # syntax scalar*shape  for scaling shape
+        return self.scale(factor)
+
+    def __sub__(self, second_shape):  # syntax -
+        def diff_of_functions(f1, f2):
+            def new_function(*args, **kwargs):
+                return 1 if f1(*args, **kwargs)==1 and f2(*args, **kwargs) == 0 else 0
+            return new_function
+        if isinstance(second_shape, Shape) and second_shape.dimension == self.dimension:
+            return Shape(diff_of_functions(self.indicator_function, second_shape.indicator_function), self.dimension, self.ambient_rectangle)
+        return NotImplemented
+    
+    def __xor__(self, second_shape):  # syntax ^  -- symmetric difference
+        def xor_of_functions(f1, f2):
+            def new_function(*args, **kwargs):
+                return 1 if (f1(*args, **kwargs)==1 and f2(*args, **kwargs) == 0) or (f1(*args, **kwargs) == 0 and f2(*args, **kwargs) == 1) else 0
+            return new_function
+        if isinstance(second_shape, Shape) and second_shape.dimension == self.dimension:
+            return Shape(xor_of_functions(self.indicator_function, second_shape.indicator_function), self.dimension, self.ambient_rectangle.fuse(second_shape.ambient_rectangle))
+        return NotImplemented
+    
+    def plot(self, N = 100_000):
+
+        assert self.dimension == 2, "Plotting is only supported for 2D shapes"
+
+        if isinstance(self, EmptyShape):
+            print("Empty shape.")
+            return
+        
+        points = [x for x in self.ambient_rectangle.samples(N) if self.indicator_function(*x) == 1]
+
+        points = np.array(points)
+
+        # Plot the points that are inside the shape
+
+        try:
+            plt.scatter(points[:, 0], points[:, 1], s=1)  # Plot x and y coordinates
+        except IndexError:
+            print("Empty intersection.")
+            return
+        plt.title(f"Points inside {self.name}")
+        plt.xlabel("X-axis")
+        plt.ylabel("Y-axis")
+        plt.xlim(self.ambient_rectangle.intervals[0][0], self.ambient_rectangle.intervals[0][1])
+        plt.ylim(self.ambient_rectangle.intervals[1][0], self.ambient_rectangle.intervals[1][1])
+        plt.gca().set_aspect('equal', adjustable='box')
+        plt.show()
+
+    def adjustbox(self, intervals): #changes ambient rectangle to custom input
+        self.ambient_rectangle = Rectangle(intervals)
+    
+    def translate(self, movement, in_place = False):   #translate shape by movement vector
+        assert self.dimension == 2, "Translation only supported currently for 2D shapes."
+        def translated_indicator(f):
+            def new_function(*x):
+                return f(x[0]-movement[0],x[1]-movement[1])
+            return new_function
+        if in_place:
+            self.indicator_function = translated_indicator(self.indicator_function)
+            self.ambient_rectangle = Rectangle([[self.ambient_rectangle.intervals[i][0]+movement[i], self.ambient_rectangle.intervals[i][1]+movement[i]] for i in range(self.dimension)])
+        else:
+            return Shape(translated_indicator(self.indicator_function), self.dimension, Rectangle([[self.ambient_rectangle.intervals[i][0]+movement[i], self.ambient_rectangle.intervals[i][1]+movement[i]] for i in range(self.dimension)]))
+   
+    def rotate(self, angle, center = None, in_radians = False, in_place = False): #rotate the shape counterclockwise by angle radians about center. by default take in angle in degrees
+        assert self.dimension == 2, "Rotation only supported currently for 2D shapes."
+        if not in_radians:
+            angle = angle*np.pi/180
+        if not center:
+            center = [0,0]
+        cos, sin = np.cos(-angle), np.sin(-angle)
+        def rotated_indicator(f):   #rotated about center [0,0]
+            def new_function(*x):
+                return f(cos*x[0]-sin*x[1],sin*x[0]+cos*x[1])
+            return new_function
+
+        #create new ambient rectangle, overshoot by taking square about center
+        max_distance = max(self.ambient_rectangle.intervals[0][0]-center[0], self.ambient_rectangle.intervals[0][1]-center[0], self.ambient_rectangle.intervals[1][0]-center[1], self.ambient_rectangle.intervals[1][1]-center[1])
+        ambient_rectangle = Rectangle([[-2*max_distance, 2*max_distance], [-2*max_distance, 2*max_distance]])
+
+        if in_place:
+            self.translate([-center[0],-center[1]], in_place = True)
+            self.indicator_function = rotated_indicator(self.indicator_function)
+            self.ambient_rectangle = ambient_rectangle
+            self.translate([center[0],center[1]], in_place = True)
+        else:
+            shape = self.translate([-center[0], -center[1]])
+            shape = Shape(rotated_indicator(shape.indicator_function), self.dimension, self.ambient_rectangle).translate([center[0],center[1]])
+            shape.ambient_rectangle = ambient_rectangle
+            return shape
+    
+    def scale(self,factor,in_place = False):
+        assert self.dimension == 2, "Scaling only supported currently for 2D shapes"
+        
+        if factor == 0:
+            if in_place:
+                self = EmptyShape(self.dimension)
+            else:
+                return EmptyShape(self.dimension)
+        
+        def scaled_indicator(f):
+            def new_function(*x):
+                return f((1/factor)*(x[0]), (1/factor)*(x[1]))
+            return new_function
+
+        if in_place:
+            self.indicator_function = scaled_indicator(self.indicator_function)
+            self.ambient_rectangle = Rectangle([[factor*interval[0], factor*interval[1]] for interval in self.ambient_rectangle.intervals])
+        else:
+            return Shape(scaled_indicator(self.indicator_function), self.dimension, Rectangle([[factor*interval[0], factor*interval[1]] for interval in self.ambient_rectangle.intervals]))
     
 
-print("Integrating:")
-print("shapes = ", shapes)
-print("operations = ", operations)
-print(normalize(integrate(shapes, dimension, operations, rectangle), rectangle))
+        #@abstractmethod
+    def monte_carlo_volume(self, N = 100_000):
+
+        points = self.ambient_rectangle.samples(N)
+        sum = 0
+        for point in points:
+            new_summand = self.indicator_function(*point)
+            sum += new_summand
+        v = sum/N
+        #now normalize
+        volume = 1
+        for (a,b) in self.ambient_rectangle.intervals:
+            volume *= b-a
+        self.volume = v*volume
+        return v*volume
+
+class EmptyShape(Shape):
+
+    def __init__(self, dimension = 2):
+        self.indicator_function = self._null_indicator()
+        self.dimension = dimension
+        super().__init__(self.indicator_function, self.dimension, Rectangle([[-1,1],[-1,1]]))
+    
+    def __repr__(self):
+        return f"Empty shape of dimension {self.dimension}"
+
+    def _null_indicator(self):
+        def null_function(x):
+            return 0
+        return null_function
+        
+class Rectangle(Shape):
+
+    def __init__(self, intervals):
+        self.intervals = intervals
+        self.indicator_function = self._rectangle_indicator(self.intervals)
+        super().__init__(self.indicator_function, len(self.intervals), self)
+
+    def __repr__(self):
+        return f"Rectangle {"x".join(str(interval) for interval in self.intervals)}"
+    
+    def volume(self):
+        prod = 1
+        for interval in self.intervals:
+            prod*(interval[1]-interval[0])
+        return prod
+    
+    def sample(self):
+        return [random.uniform(interval[0],interval[1]) for interval in self.intervals]
+    
+    def samples(self,N):
+        ans = []
+        for _ in range(N):
+            ans.append(self.sample())
+        return ans
+    
+    def _rectangle_indicator(self,intervals):
+        def indicator(*x):
+            return 1 if all(intervals[i][0] <= xi <= intervals[i][1] for i, xi in enumerate(x)) else 0
+        return indicator
+    
+    def fuse(self,second_rectangle):
+        second_intervals = second_rectangle.intervals
+        return Rectangle([[min(self.intervals[i][0],second_intervals[i][0]), max(self.intervals[i][1], second_intervals[i][1])] for i in range(len(second_intervals))])
+    
+    def intersect(self,second_rectangle):
+        second_intervals = second_rectangle.intervals
+        return Rectangle([[max(self.intervals[i][0],second_intervals[i][0]), min(self.intervals[i][1], second_intervals[i][1])] for i in range(len(second_intervals))])
+
+
+class Ellipsoid(Shape):
+
+    def __init__(self, semiaxes, dimension = 2, center = None):
+        self.semiaxes = semiaxes
+        if center:
+            self.center = center
+            self.dimension = len(center)
+        else:
+            self.dimension = dimension
+            self.center = [0]*dimension
+        
+        self.indicator_function = self._ellipsoid_indicator(self.semiaxes,self.center)
+
+        self.ambient_rectangle = Rectangle([[self.center[i]-self.semiaxes[i],self.center[i]+self.semiaxes[i]] for i in range(self.dimension)])
+
+        super().__init__(self.indicator_function, self.dimension, self.ambient_rectangle)
+    
+    def __repr__(self):
+        return f"Ellipsoid of dimension {self.dimension} with semiaxes {",".join(str(semiaxis) for semiaxis in semiaxes)}"
+    
+    def _ellipsoid_indicator(self,semiaxes,center):
+        def indicator(*x):
+            return 1 if sum((x[i]-center[i])**2/(semiaxes[i]**2) for i in range(len(center))) <= 1 else 0
+        return indicator
+
+class Disk(Ellipsoid):
+
+    def __init__(self, radius, dimension = 2, center = None):
+        self.radius = radius
+        if center:
+            self.center = center
+            self.dimension = len(center)
+        else:
+            self.dimension = dimension
+            self.center = [0]*dimension
+
+        super().__init__([self.radius]*self.dimension, self.dimension, self.center)
+
+    def __repr__(self):
+        return f"Disk of dimension {self.dimension} of radius {self.radius} centered at {self.center}"
+    
+class GraphSide(Shape):
+
+    def __init__(self,equation,side):   #equation is [b,k] for y = kx + b,   side is "above" or "below"
+        self.equation = equation
+        self.side = side
+        self.indicator_function = self._graphside_indicator(self.equation, self.side)
+        self.dimension = 2
+        self.ambient_rectangle = Rectangle([[-100,100],[-100,100]])
+        super().__init__(self.indicator_function, self.dimension, self.ambient_rectangle)
+    
+    def __repr__(self):
+        return f"Region {self.side} the graph of y = {self.equation[1]}x + {self.equation[0]}"
+    
+    def _graphside_indicator(self,equation,side):
+        def indicator(*x):
+            return ((x[-1] > equation[0] + sum([equation[i]*x[i-1] for i in range(1,len(x))])) and (side == "above")) or ((x[-1] < equation[0] + sum([equation[i]*x[i-1] for i in range(1,len(x))])) and (side == "below"))
+        return indicator    
+
+class Triangle(Shape):
+
+    def __init__(self,points):
+        points = sorted(points)
+        assert not (points[0][0] == points[1][0] == points[2][0] or points[0][1] == points[1][1] == points[2][1]), "Degenerate triangles are not supported."
+        self.vertices = points
+        self.dimension = 2
+        self.ambient_rectangle = Rectangle([[min(point[0] for point in points), max(point[0] for point in points)],[min(point[1] for point in points), max(point[1] for point in points)]])
+
+        A,B,C = points
+        
+        if A[0] == B[0]:
+            #below this line through B and C
+            k1 = (C[1]-B[1])/(C[0]-B[0])
+            b1 = B[1] - k1*B[0]
+            #y = kx + b
+            #k = (y2-y1)/(x2-x1)
+            #b = y1 - kx1
+            
+            #above this line through A and C
+            k2 = (C[1]-A[1])/(C[0]-A[0])
+            b2 = A[1] - k2*A[0]
+            shape = Shape(self._vertical_indicator(A[0], "right"), self.dimension, self.ambient_rectangle)*GraphSide([b1,k1],"below")*GraphSide([b2,k2], "above")
+        elif B[0] == C[0]:
+            k1 = (B[1]-A[1])/(B[0]-A[0])
+            b1 = B[1] - k1*B[0]
+            k2 = (C[1]-A[1])/(C[0]-A[0])
+            b2 = A[1] - k2*A[0]
+            shape = Shape(self._vertical_indicator(B[0], "left"), self.dimension, self.ambient_rectangle)*GraphSide([b1,k1],"above")*GraphSide([b2,k2], "below")
+        else:
+            k1 = (B[1]-A[1])/(B[0]-A[0])
+            b1 = A[1] - k1*A[0]
+            k2 = (C[1]-A[1])/(C[0]-A[0])
+            b2 = A[1] - k2*A[0]
+            k3 = (C[1]-B[1])/(C[0]-B[0])
+            b3 = B[1] - k3*B[0]
+            if C[1] > k1*C[0]+b1:
+                shape = GraphSide([b1,k1],"above")*GraphSide([b2,k2], "below")*GraphSide([b3,k3], "above")
+            else:
+                shape = GraphSide([b1,k1],"below")*GraphSide([b2,k2], "above")*GraphSide([b3,k3], "below")
+
+        super().__init__(shape.indicator_function, self.dimension, self.ambient_rectangle)
+
+    def __repr__(self):
+        return f"Triangle with vertices {",".join(str(vertex) for vertex in self.vertices)}"
+    
+    def _vertical_indicator(self,x_intercept,side):
+        def indicator(*x):
+            if side == "right":
+                return 1 if x[0]>=x_intercept else 0
+            elif side == "left":
+                return 1 if x[0]<=x_intercept else 0
+        return indicator
+    
