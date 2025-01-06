@@ -210,7 +210,7 @@ class EmptyShape(Shape):
         return f"Empty shape of dimension {self.dimension}"
 
     def _null_indicator(self):
-        def null_function(x):
+        def null_function(*x):
             return 0
         return null_function
         
@@ -365,4 +365,5 @@ class Triangle(Shape):
             elif side == "left":
                 return 1 if x[0]<=x_intercept else 0
         return indicator
+    
     
