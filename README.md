@@ -3,7 +3,7 @@ Apply set theoretic operations to various shapes, and compute the volume of the 
 
 Basic shapes, and intersection:
 ```
-shape1 = Triangle([[0,0],[4,4],[3,4]])  #prescribe triangle by prescribing its vertices as a list of length two lists
+shape1 = Triangle([[0,0],[2,4],[15,4]])  #prescribe triangle but prescribing its vertices as a list of length two lists
 shape2 = Rectangle([[1,2],[3,4]])  #prescribe rectangle by prescribing its projections to each axis as a list of lists
 shape3 = Disk(1) # disk of radius 1. Default dimension is 2, and default center is [0,0,...,0]
 shape4 = Disk(5, 2, [-1,-1])    #parameters are (radius, dimension, center). 
@@ -16,8 +16,9 @@ shape.plot() #or call the plot function
 shape(volume = True) #include extra parameter to also get its Monte-Carlo computed volume
 ```
 
+<img width="473" alt="Screenshot 2025-01-06 at 3 37 20 PM" src="https://github.com/user-attachments/assets/47b35ab2-5eb7-4d1d-9f73-f7ecef840ff3" />
 
-<img width="469" alt="Screenshot 2025-01-06 at 12 36 13 PM" src="https://github.com/user-attachments/assets/04dfcb88-b848-45f1-a896-0281238b53af" />
+
 
 ```
 Volume = 0.0708
@@ -30,24 +31,27 @@ shape = ((shape1 + shape2) - shape4)^shape3 #union, set difference, and symmetri
 shape()
 ```
 
-<img width="440" alt="Screenshot 2025-01-06 at 12 41 17 PM" src="https://github.com/user-attachments/assets/88618cc1-8a91-4f08-ac0b-417d3d023ecb" />
+<img width="567" alt="Screenshot 2025-01-06 at 3 37 28 PM" src="https://github.com/user-attachments/assets/b81ab120-319d-40fb-b120-52fc2e373b61" />
+
 
 
 We can also use + to translate a shape by a vector, and * to scale it by a factor:
 
 ```
-shape = shape + [1,2] # translate your shape by vector [1,2]
+shape = ((shape1 + shape2) - shape4)^shape3 #union, set difference, and symmetric difference (symmetric difference = A+B - A*B)
 shape()
-shape = [1,2] + shape #can also translate from the left
+
+shape7 = shape + [50,70] # translate your shape by vector [1,2]
+shape()
+shape7 = [40,60] + shape7 #can also translate from the left
 # beware that + is not associative now, if using both Shape + Shape and Shape + vector
 
-shape = (2*shape)*3 #scale your shape from the left or from the right
-shape()
+shape8 = (2*shape)*3 #scale your shape from the left or from the right
+(shape7+shape8)()
 ```
 
-<img width="430" alt="Screenshot 2025-01-06 at 12 42 50 PM" src="https://github.com/user-attachments/assets/8acd1e31-c158-4e39-86fb-b8cd1387c358" />
+<img width="369" alt="Screenshot 2025-01-06 at 3 40 26 PM" src="https://github.com/user-attachments/assets/a285e2bc-76c4-4dd5-921b-e91f31bb87be" />
 
-<img width="432" alt="Screenshot 2025-01-06 at 12 43 05 PM" src="https://github.com/user-attachments/assets/84c22b94-dc5b-4551-b336-29aa1c6734b0" />
 
 The ambient rectangle used for Monte Carlo approximation is automatically adjusted. You can prescribe it to be whatever you want using the adjustbox method.
 
