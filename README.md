@@ -1,5 +1,5 @@
 # Basic-Monte-Carlo-integrator
-A basic interactive program where you can apply set theoretic operations to various shapes, and compute the volume of the resulting shape using Monte Carlo approximation.
+Apply set theoretic operations to various shapes, and compute the volume of the resulting shape using Monte Carlo approximation.
 
 Basic shapes, and intersection:
 ```
